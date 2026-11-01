@@ -1,0 +1,36 @@
+name: YanyuAd daily sync
+on:
+  schedule:
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: yanyuad-production
+  cancel-in-progress: false
+jobs:
+  request-and-verify:
+    if: vars.YANYUAD_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - name: Request a Cloudflare build through the connected repository
+        env:
+          SYNC_REQUEST_ID: daily-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          node --input-type=module -e 'import fs from "node:fs"; fs.writeFileSync(".sync-request.json", JSON.stringify({id:process.env.SYNC_REQUEST_ID,requested_at:new Date().toISOString()})+"\n");'
+          git config user.name "YanyuAd sync"
+          git config user.email "253015402+BABYANYU@users.noreply.github.com"
+          git add .sync-request.json
+          git commit -m "chore: request verified daily plugin synchronization"
+          git push origin HEAD:main
+      - name: Verify the requested catalog reached the public site
+        env:
+          SYNC_REQUEST_ID: daily-${{ github.run_id }}-${{ github.run_attempt }}
+          YANYUAD_PUBLIC_BASE_URL: ${{ vars.YANYUAD_PUBLIC_BASE_URL }}
+        run: node scripts/wait-for-deployment.mjs
