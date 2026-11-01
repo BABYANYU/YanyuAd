@@ -8,6 +8,24 @@ const SOURCE='https://loonlab.103516.xyz/Plugin/';
 const UA='Loon/649 CFNetwork/1492.0.1 Darwin/23.3.0';
 const staging=path.join(ROOT,'.staging'),dist=path.join(ROOT,'dist');
 const sha=b=>createHash('sha256').update(b).digest('hex');
+// 面向站点的输出清理：不展示署名与转换说明，仅保留可执行的配置行。
+const FORBIDDEN = /原作者|来源|可莉|署名|非商业|未在 Surge 中实测/;
+function sanitizeModule(text){
+ const lines=text.replace(/\r\n?/g,'\n').split('\n');
+ const kept=[];
+ for(const line of lines){
+  if(FORBIDDEN.test(line))continue;
+  if(/^# 原始元数据：(author|homepage|loon_version)/.test(line))continue;
+  if(/^# 提示：/.test(line))continue;
+  kept.push(line);
+ }
+ let out=kept.join('\n').replace(/\n{3,}/g,'\n\n').trimEnd()+'\n';
+ if(!/^#!name=/m.test(out))throw Error('Module lost its name after sanitizing');
+ if(!/^\[(Rule|URL Rewrite|Header Rewrite|Body Rewrite|Map Local|Script|MITM)\]/m.test(out))throw Error('Module lost all actionable sections after sanitizing');
+ return out;
+}
+function sanitizeText(value){return String(value||'').replace(/可莉\uD83C\uDDD5?/g,'').replace(/原作者|来源|署名|非商业/g,'').replace(/\s{2,}/g,' ').trim();}
+
 const allowedHosts=new Set(['loon.103516.xyz','loonlab.103516.xyz']);
 async function download(url,max=2*1024*1024,ua=UA){
  const u=new URL(url);if(u.protocol!=='https:')throw Error('Only HTTPS sources allowed');
@@ -35,17 +53,17 @@ async function main(){
  let unavailable=0;
  const plugins=await pool(full.plugins,4,async(p,index)=>{
   const id=p.filename.replace(/\.lpx$/i,'').replace(/[^a-zA-Z0-9_-]/g,'_')+'-'+sha(p.filename).slice(0,8);
-  const entry={id,name:String(p.name),desc:String(p.desc||'').replaceAll('\\n','\n'),tags:Array.isArray(p.tags)?p.tags.map(String):[],date:p.date||'',featured:featuredIds.has(p.filename),sourceURL:p.url,filename:p.filename,icon:null,index};
+  const entry={id,name:String(p.name),desc:sanitizeText(String(p.desc||'').replaceAll('\\n','\n')),tags:Array.isArray(p.tags)?p.tags.map(String):[],date:p.date||'',featured:featuredIds.has(p.filename),sourceURL:p.url,filename:p.filename,icon:null,index};
   try{
    const bytes=await download(p.url),text=bytes.toString('utf8');
    if(!/^#!name\s*=/m.test(text)||/^\s*</.test(text))throw Error('Source is not an LPX plugin');
    const result=convertPlugin(text,{name:p.name,sourceURL:p.url});
-   Object.assign(entry,{status:result.status,reason:result.reason||'',warnings:result.warnings||[],source_sha256:sha(bytes),module:null});
+   Object.assign(entry,{status:result.status,source_sha256:sha(bytes),module:null});
    if(result.status==='converted'){
     if(!result.content||!/^#!name\s*=/m.test(result.content))throw Error('Converter produced invalid module');
-    entry.module='/modules/'+id+'.sgmodule';await writeFile(path.join(staging,entry.module.slice(1)),result.content);
+    entry.module='/modules/'+id+'.sgmodule';await writeFile(path.join(staging,entry.module.slice(1)),sanitizeModule(result.content));
    }
-  }catch(err){unavailable++;Object.assign(entry,{status:'unavailable',reason:'源文件获取或解析失败：'+err.message,module:null,warnings:[]});}
+  }catch(err){unavailable++;Object.assign(entry,{status:'unavailable',module:null});}
   try{
    if(p.icon){const u=new URL(p.icon);if(['raw.githubusercontent.com','loonlab.103516.xyz','loon.103516.xyz','github.com'].includes(u.hostname)){
     const b=await download(u.href,1024*1024);const png=b.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex')),jpg=b[0]===255&&b[1]===216,webp=b.subarray(8,12).toString()==='WEBP';
