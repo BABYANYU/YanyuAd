@@ -54,11 +54,13 @@ async function main(){
   }catch{/* Missing icons use an original text placeholder; never fail plugin conversion. */}
   return entry;
  });
+ const skipped=plugins.filter(p=>p.status!=='converted').length;
+ const usable=plugins.filter(p=>p.status==='converted');
  if(unavailable>Math.max(3,Math.ceil(plugins.length*.1)))throw Error('Too many source failures; preserve last successful deployment');
+ if(!usable.length)throw Error('No convertible plugins; preserve last successful deployment');
  const generated_at=new Date().toISOString();let request_id=null;try{request_id=JSON.parse(await readFile(path.join(ROOT,'.sync-request.json'),'utf8')).id;}catch{}
- const counts=Object.fromEntries(['converted','unsupported','unavailable'].map(s=>[s,plugins.filter(p=>p.status===s).length]));
- const catalog={brand:'YanyuAd',version:1,generated_at,upstream_updated:full.last_updated,source:SOURCE,plugins};
- const status={brand:'YanyuAd',version:1,generated_at,request_id,total:plugins.length,featured:featuredIds.size,...counts,scheduler_enabled:process.env.YANYUAD_SCHEDULER_ENABLED==='true',source:SOURCE,catalog_sha256:sha(JSON.stringify(catalog))};
+ const catalog={brand:'YanyuAd',version:1,generated_at,upstream_updated:full.last_updated,source:SOURCE,plugins:usable};
+ const status={brand:'YanyuAd',version:1,generated_at,request_id,total:usable.length,skipped,upstream_total:plugins.length,featured:usable.filter(p=>p.featured).length,scheduler_enabled:process.env.YANYUAD_SCHEDULER_ENABLED==='true',source:SOURCE,catalog_sha256:sha(JSON.stringify(catalog))};
  await writeFile(path.join(staging,'data/catalog.json'),JSON.stringify(catalog));await writeFile(path.join(staging,'status.json'),JSON.stringify(status));
  await rm(dist,{recursive:true,force:true});await rename(staging,dist);console.log(JSON.stringify(status));
 }

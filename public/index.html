@@ -6,7 +6,7 @@
 <label class="search"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.75"/><path d="m16 16 4.5 4.5"/></svg><input id="search" type="search" placeholder="搜索模块名称或标签…" aria-label="搜索模块" autocomplete="off"><kbd>/</kbd></label>
 <div class="toolbar"><div class="pills" id="sorts"><button data-sort="default" class="selected">默认排序</button><button data-sort="name">名称排序</button><button data-sort="date">最近更新</button></div><label class="switch"><input type="checkbox" id="all"><span>显示全部</span></label></div>
 <div class="categories" id="categories" aria-label="标签筛选"></div>
-<div class="results"><span><strong id="count">正在加载…</strong></span><label class="sort"><span>状态</span><select id="compat" aria-label="兼容状态"><option value="all">全部</option><option value="converted">可安装</option><option value="unsupported">暂不支持</option></select></label></div>
+<div class="results"><span><strong id="count">正在加载…</strong></span><span class="results-note">均可直接安装</span></div>
 <div class="grid" id="grid" aria-live="polite"></div><div id="empty" hidden>没有匹配的模块</div><p class="error" id="error" hidden></p>
 <footer><span id="sync">正在读取同步状态</span><a href="/sources.html">来源与许可</a></footer></section></main>
 <dialog id="details" aria-labelledby="detail-title"><button id="close" class="dialog-close" aria-label="关闭">×</button><div id="detail-body"></div></dialog><div id="toast" role="status" aria-live="polite"></div><script type="module" src="/app.js"></script></body></html>

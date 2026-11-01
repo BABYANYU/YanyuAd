@@ -1,6 +1,6 @@
 const $=s=>document.querySelector(s);
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n;};
-const state={query:'',tag:'全部',sort:'default',all:false,compat:'all'};
+const state={query:'',tag:'全部',sort:'default',all:false};
 let catalog=[],snapshot={};
 const safeURL=v=>{try{const u=new URL(v,location.origin);return['https:','http:'].includes(u.protocol)?u.href:null;}catch{return null;}};
 let toastTimer;
@@ -8,8 +8,8 @@ function toast(s){$('#toast').textContent=s;$('#toast').classList.add('show');cl
 async function copy(s){try{await navigator.clipboard.writeText(s);toast('已复制链接');}catch{const t=el('textarea');t.value=s;document.body.append(t);t.select();try{document.execCommand('copy');toast('已复制链接');}catch{toast('复制失败，请手动复制');}t.remove();}}
 const moduleURL=p=>p.module?new URL(p.module,location.origin).href:null;
 const installURL=p=>{const u=moduleURL(p);return u?'surge:///install-module?url='+encodeURIComponent(u):null;};
-function actions(p){const box=el('div','actions'),url=moduleURL(p);const b=el('button','action','复制链接');b.type='button';if(url)b.addEventListener('click',()=>copy(url));else b.disabled=true;const a=el('a','action'+(url?' primary':' disabled'),url?'导入 Surge':'暂不支持');if(url)a.href=installURL(p);else a.setAttribute('aria-disabled','true');box.append(b,a);return box;}
-const statusText=p=>p.status==='converted'?(p.warnings?.length?'可安装 · 脚本待实测':'可安装 · 功能待实测'):p.status==='unavailable'?'来源异常 · 暂停安装':'暂不支持 · 查看原因';
+function actions(p){const box=el('div','actions'),url=moduleURL(p);const b=el('button','action','复制链接');b.type='button';b.addEventListener('click',()=>copy(url));const a=el('a','action primary','导入 Surge');a.href=installURL(p);box.append(b,a);return box;}
+const statusText=p=>p.warnings?.length?'已转换 · 脚本待实测':'已转换 · 功能待实测';
 function showDetail(p){
  const box=$('#detail-body');box.replaceChildren(el('div','detail-name',p.name),el('p','detail-desc',p.desc||''));
  const authors=el('section','detail-section');authors.append(el('strong',null,'原作者'));
@@ -26,7 +26,7 @@ function showDetail(p){
 }
 function render(){
  const q=state.query.trim().toLocaleLowerCase();
- let rows=catalog.filter(p=>(state.all||p.featured)&&(state.tag==='全部'||p.tags?.includes(state.tag))&&(state.compat==='all'||p.status===state.compat)&&(!q||[p.name,p.filename,p.desc,...(p.tags||[])].join(' ').toLocaleLowerCase().includes(q)));
+ let rows=catalog.filter(p=>(state.all||p.featured)&&(state.tag==='全部'||p.tags?.includes(state.tag))&&(!q||[p.name,p.filename,p.desc,...(p.tags||[])].join(' ').toLocaleLowerCase().includes(q)));
  if(state.sort==='name')rows.sort((a,b)=>a.name.localeCompare(b.name,'zh-CN'));
  if(state.sort==='date')rows.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
  $('#count').textContent=(state.tag==='全部'?'全部':state.tag)+' · '+rows.length+' 个模块';
@@ -44,15 +44,14 @@ function render(){
   const bottom=el('div','card-bottom'),meta=el('div','metadata'),tags=el('div','tags');
   for(const t of(p.tags||[]).slice(0,2))tags.append(el('span','tag',t));
   meta.append(tags,el('time','date',(p.date||'').slice(0,16)));
-  bottom.append(meta,actions(p),el('div','status'+(p.status==='converted'?' ok':''),statusText(p)));
+  bottom.append(meta,actions(p),el('div','status ok',statusText(p)));
   card.append(top,bottom);frag.append(card);
  }
  $('#grid').replaceChildren(frag);
 }
 function home(){
- Object.assign(state,{query:'',tag:'全部',sort:'default',all:false,compat:'all'});
- $('#search').value='';$('#all').checked=false;$('#compat').value='all';
- document.querySelectorAll('[data-sort]').forEach(b=>b.classList.toggle('selected',b.dataset.sort==='default'));
+ Object.assign(state,{query:'',tag:'全部',sort:'default',all:false});
+ $('#search').value='';$('#all').checked=false; document.querySelectorAll('[data-sort]').forEach(b=>b.classList.toggle('selected',b.dataset.sort==='default'));
  document.querySelectorAll('[data-tag]').forEach(b=>b.classList.toggle('selected',b.dataset.tag==='全部'));
  $('#about')?.classList.remove('active');$('#about')?.setAttribute('aria-pressed','false');
  if($('#details').open)$('#details').close();
@@ -61,7 +60,6 @@ function home(){
 $('#home').addEventListener('click',e=>{e.preventDefault();home();});
 $('#search').addEventListener('input',e=>{state.query=e.target.value;render();});
 $('#all').addEventListener('change',e=>{state.all=e.target.checked;render();});
-$('#compat').addEventListener('change',e=>{state.compat=e.target.value;render();});
 document.querySelectorAll('[data-sort]').forEach(b=>b.addEventListener('click',()=>{state.sort=b.dataset.sort;document.querySelectorAll('[data-sort]').forEach(n=>n.classList.toggle('selected',n===b));render();}));
 $('#close').addEventListener('click',()=>$('#details').close());
 $('#details').addEventListener('click',e=>{if(e.target===$('#details')){const r=$('#details').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('#details').close();}});

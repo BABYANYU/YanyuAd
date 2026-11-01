@@ -12,7 +12,7 @@ Loon 插件 → Surge 模块的转换与订阅目录，静态站点，无 VPS、
 | 项 | 说明 |
 |---|---|
 | 转换 ≠ 可用 | `converted` 只表示配置语法在支持范围内转换成功，**没有在 Surge 实测功能** |
-| 无法等价转换 | 含参数、新版 body/header 改写、cron/generic 任务等，明确标为“暂不支持”，不静默丢功能 |
+| 无法等价转换 | 含参数、新版 body/header 改写、cron/generic 任务等**直接跳过，不进入站点**；`status.json` 记录 `skipped` 数量 |
 | 脚本 | 保留原作者脚本地址，不下载执行；脚本是否兼容 Surge 需人工核对 |
 | MITM | 涉及 HTTPS 解密需用户自备证书；模块使用 `%APPEND%`，不覆盖本地配置 |
 | 版权 | 派生材料遵循 CC BY-NC-SA 4.0，仅非商业；原作者署名与来源保留在页面与模块注释 |
@@ -24,7 +24,7 @@ Loon 插件 → Surge 模块的转换与订阅目录，静态站点，无 VPS、
 | `public/` | 静态页面源码（index、style、app、sources、图标、`_headers`） |
 | `public/licenses/LOONLAB.txt` | 来源仓库许可文本 |
 | `scripts/convert.mjs` | 纯离线、失败即拒绝的 LPX→sgmodule 转换器 |
-| `scripts/sync.mjs` | 抓取目录与插件、转换、生成 `dist/` |
+| `scripts/sync.mjs` | 抓取目录与插件、转换；仅发布可转换项，其余跳过，生成 `dist/` |
 | `scripts/check.mjs` | 产物完整性、计数、模块一致性校验 |
 | `scripts/wait-for-deployment.mjs` | 部署后线上 `status.json` 校验 |
 | `tests/convert.test.mjs` | 转换器单元测试 |
@@ -63,7 +63,9 @@ node --test tests/*.test.mjs && node scripts/sync.mjs --production && node scrip
 
 支持：基础规则（DOMAIN、DOMAIN-SUFFIX、DOMAIN-KEYWORD、IP-CIDR、IP-CIDR6、GEOIP）、旧式 URL rewrite、`reject*` 系列（映射 Map Local）、新版 request `reject*`/`redirect`、HTTP request/response 脚本声明、MITM 追加。
 
-拒绝：`[Argument]`、脚本参数、`response.json.*`、body/header 改写、cron/generic/network-changed、外部策略与规则集、混淆的跨引擎正则、平台版本约束。
+拒绝（不入站、不发布）：`[Argument]`、脚本参数、`response.json.*`、body/header 改写、cron/generic/network-changed、外部策略与规则集、混淆的跨引擎正则、平台版本约束。
+
+仓库不保存任何插件原始文件或生成产物（`dist/` 已忽略），只保留转换器、页面源码和文档。
 
 ## 卸载
 
