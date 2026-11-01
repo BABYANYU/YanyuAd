@@ -1,0 +1,6 @@
+dist/
+.staging/
+.cache/
+node_modules/
+.sync-request.json.bak
+.DS_Store
