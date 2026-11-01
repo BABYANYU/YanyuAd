@@ -41,10 +41,10 @@ test('metadata provenance and author retained, comments never execute', () => {
   const r = convertPlugin('#!name = 原标题\n#!author = Alice[https://example.org]\n#!homepage = https://source.example\n# License: CC BY-NC-SA 4.0\n; attribution\n[Rule]\nDOMAIN,ads.example,REJECT', { name: '新标题', sourceURL: 'https://source.example/a.lpx' });
   assert.equal(r.status, 'converted');
   assert.match(r.content, /^#!name=新标题/m);
-  assert.match(r.content, /Source metadata: author = Alice\[https:\/\/example.org\]/);
+  assert.match(r.content, /原始元数据：author = Alice\[https:\/\/example.org\]/);
   assert.match(r.content, /License: CC BY-NC-SA 4.0/);
-  assert.match(r.content, /# Source: https:\/\/source.example\/a.lpx/);
-  assert.match(r.content, /not functionally verified/);
+  assert.match(r.content, /# 来源：https:\/\/source.example\/a.lpx/);
+  assert.match(r.content, /未在 Surge 中实测功能/);
 });
 test('unknown metadata, duplicate directives and dynamic arguments are not ignored', () => {
   for (const m of ['#!arguments=x:true', '#!input=x', '#!if=true', '#!name=a\n#!name=b', '#!system=ios', '#!system_version=17']) bad(m+'\n[Rule]\nDOMAIN,x,REJECT');
@@ -116,17 +116,17 @@ response if ${'${url}'} ~= /^https:\/\/appraven\.net\/appraven\/graphql/i then s
 hostname = appraven.net`;
 test('real AppRaven script reference converts with mandatory validation warning', () => {
   const r = ok(appRaven);
-  assert.match(r.content, /loon_1 = type=http-response, pattern=\(\?i\)\^https:\/\/appraven/);
+  assert.match(r.content, /plugin_1 = type=http-response, pattern=\(\?i\)\^https:\/\/appraven/);
   assert.match(r.content, /requires-body=true, timeout=10/);
   assert.match(r.content, /hostname = %APPEND% appraven.net/);
-  assert.ok(r.warnings.some(x => x.includes('External-script validation required: https://loon.103516.xyz/Script/AppRaven/AppRaven.js')));
+  assert.ok(r.warnings.some(x => x.includes('https://loon.103516.xyz/Script/AppRaven/AppRaven.js')));
   assert.match(r.content, /Yu9191/);
 });
 test('legacy HTTP scripts have validated booleans and generated unique names', () => {
   const r = ok('[Script]\nhttp-request ^https://x/ script-path=https://example.org/a.js,tag="a,b",requires-body=true,binary-body-mode=true,timeout=20\nhttp-response ^https://y/ script-path=https://example.org/b.js,enable=true');
-  assert.match(r.content, /loon_1 = type=http-request/);
-  assert.match(r.content, /loon_2 = type=http-response/);
-  assert.match(r.content, /Source script tag: a,b/);
+  assert.match(r.content, /plugin_1 = type=http-request/);
+  assert.match(r.content, /plugin_2 = type=http-response/);
+  assert.match(r.content, /原始脚本标签：a,b/);
   assert.match(r.content, /binary-body-mode=true/);
 });
 test('unknown script parameter or local URL never produces success', () => {

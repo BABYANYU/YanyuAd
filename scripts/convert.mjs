@@ -6,7 +6,7 @@ import { isIP } from 'node:net';
 const META = new Set(['name', 'desc', 'author', 'openurl', 'tag', 'system',
   'system_version', 'loon_version', 'homepage', 'icon', 'date']);
 const POLICIES = new Set(['DIRECT', 'REJECT', 'REJECT-TINYGIF']);
-const warningBase = 'Syntax converted only; not functionally verified in Surge. HTTPS processing requires the user’s MITM certificate and hostname coverage.';
+const warningBase = '语法转换完成，未在 Surge 中实测功能。HTTPS 解密需自备 MITM 证书与域名覆盖。';
 const fail = message => { throw new Error(message); };
 const oneLine = (value, label) => {
   if (typeof value !== 'string' || /[\r\n\u0000-\u001f\u007f]/.test(value)) fail(`Invalid ${label}`);
@@ -156,10 +156,10 @@ export function convertPlugin(text, { name, sourceURL } = {}) {
         // Loon HTTP scripts default to 10s, Surge defaults to 5s.
         fields.push('timeout=10');
       }
-      if (settings.has('argument')) fail('Script arguments require explicit Loon-to-Surge semantic review');
-      if (settings.has('tag')) notes.push(`# Source script tag: ${oneLine(settings.get('tag'), 'script tag')}`);
-      add('Script', `loon_${++scriptNumber} = ${fields.join(', ')}`);
-      warnings.push(`External-script validation required: ${url}; inspect Loon-specific APIs, environment branching and binary $done/body semantics. Script was not fetched or executed.`);
+      if (settings.has('argument')) fail('脚本参数需要人工核对语义后再转换');
+      if (settings.has('tag')) notes.push(`# 原始脚本标签：${oneLine(settings.get('tag'), 'script tag')}`);
+      add('Script', `plugin_${++scriptNumber} = ${fields.join(', ')}`);
+      warnings.push(`外部脚本需自行核对：${url}。脚本未下载、未执行，可能包含不兼容的宿主 API 或二进制处理。`);
     };
     for (const raw of text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n')) {
       lineNumber++;
@@ -173,7 +173,9 @@ export function convertPlugin(text, { name, sourceURL } = {}) {
         if (metadata.has(key)) fail(`Duplicate metadata directive: ${key}`);
         metadata.set(key, value);
         // Source metadata is archived as a plain comment, not executed by Surge.
-        notes.push(`# Source metadata: ${line.slice(2)}`);
+        const rawKey = m[1].toLowerCase();
+        // 兼容性记录的宿主版本与主页不作为可见文案，避免误读为 Surge 能力声明。
+        if (rawKey !== 'loon_version' && rawKey !== 'homepage') notes.push(`# 原始元数据：${line.slice(2)}`);
         continue;
       }
       if (/^(#|;|\/\/)/.test(line)) { notes.push(`# ${raw}`); continue; }
@@ -257,14 +259,14 @@ export function convertPlugin(text, { name, sourceURL } = {}) {
     if (!count || (count === 1 && sections.has('MITM'))) fail('No actionable supported directives');
     if (metadata.get('system') || metadata.get('system_version')) fail('Source platform/version constraints require manual review');
     if (sections.has('URL Rewrite') && sections.has('Map Local')) fail('Mixed URL Rewrite and Map Local precedence cannot be preserved safely');
-    if (sections.has('Map Local')) warnings.push('Map Local text/tiny-gif requires Surge iOS 5.9.1+ or Mac 5.5.1+; response headers may differ from Loon.');
-    if (metadata.has('loon_version')) warnings.push('Source Loon version metadata retained as attribution only, not a Surge compatibility claim.');
+    if (sections.has('Map Local')) warnings.push('文本/占位图响应需要 Surge iOS 5.9.1+ 或 macOS 5.5.1+；响应头可能与原插件不同。');
+    if (metadata.has('loon_version')) warnings.push('原始版本元数据仅作来源记录，不代表 Surge 兼容性。');
     const output = [
-      `#!name=${title || metadata.get('name') || 'Converted Loon plugin'}`,
-      `#!desc=${metadata.get('desc') || 'Conservative offline LPX subset conversion'}`,
-      '# Converted from Loon LPX. Original attribution and notices follow.',
-      ...(sourceURL ? [`# Source: ${sourceURL}`] : []),
-      ...[...new Set(warnings)].map(x => `# WARNING: ${x}`),
+      `#!name=${title || metadata.get('name') || '转换模块'}`,
+      `#!desc=${metadata.get('desc') || '由上游插件配置转换的模块'}`,
+      '# 由上游插件配置自动转换，原作者署名与许可声明见下。',
+      ...(sourceURL ? [`# 来源：${sourceURL}`] : []),
+      ...[...new Set(warnings)].map(x => `# 提示：${x}`),
       ...notes,
     ];
     for (const [key, lines] of sections) output.push('', `[${key}]`, ...lines);

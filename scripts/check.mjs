@@ -21,7 +21,7 @@ async function main(){
    await exists(p.module);
    const mod=await readFile(path.join(ROOT,p.module.slice(1)),'utf8');
    if(!/^#!name=/m.test(mod)||!/^\[(Script|Rule|URL Rewrite|Map Local|MITM)\]/m.test(mod))throw Error('Suspicious module '+p.module);
-   if(!/Converted from Loon LPX/.test(mod))throw Error('Missing conversion notice '+p.module);
+   if(!/由上游插件配置自动转换/.test(mod))throw Error('Missing conversion notice '+p.module);
   }else if(p.module){throw Error('Unconverted plugin must not expose a module '+p.filename);}
   if(p.icon)await exists(p.icon);
  }
