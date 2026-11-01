@@ -1,12 +1,14 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="theme-color" content="#fafaf8"><meta name="description" content="YanyuAd，由 YANYU 设计与维护的 Surge 模块目录。"><title>YanyuAd · 模块仓库</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"></head><body>
-<a class="skip-link" href="#library">跳到模块目录</a>
-<header class="topbar"><div class="header-inner"><a id="home" class="brand" href="/" aria-label="YanyuAd 首页" aria-current="page"><svg class="mark" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#0f6b4f"/><path d="M9 9l7 8.5L23 9M16 17.5V24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Yanyu<span class="accent">Ad</span></span></a><nav class="top-nav" aria-label="主导航"><button id="about" class="nav-link" aria-pressed="false">关于</button></nav></div></header>
-<main class="page-shell"><section id="library" class="library" aria-label="模块目录"><div class="intro"><h1 class="title">模块目录</h1><p class="lede">由 YANYU 设计与维护的 Surge 模块集合，每日同步，按需安装。</p></div>
-<div class="notice">自动转换目录 · 保留原作者署名 · 仅供非商业学习与测试</div>
-<label class="search"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.75"/><path d="m16 16 4.5 4.5"/></svg><input id="search" type="search" placeholder="搜索模块名称或标签…" aria-label="搜索模块" autocomplete="off"><kbd>/</kbd></label>
-<div class="toolbar"><div class="pills" id="sorts"><button data-sort="default" class="selected">默认排序</button><button data-sort="name">名称排序</button><button data-sort="date">最近更新</button></div><label class="switch"><input type="checkbox" id="all"><span>显示全部</span></label></div>
-<div class="categories" id="categories" aria-label="标签筛选"></div>
-<div class="results"><span><strong id="count">正在加载…</strong></span><span class="results-note">均可直接安装</span></div>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="theme-color" content="#fbfbf9"><meta name="description" content="YanyuAd — Surge 模块目录。"><title>YanyuAd</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"></head><body>
+<header class="topbar"><div class="header-inner"><a id="home" class="brand" href="/" aria-label="YanyuAd" aria-current="page"><svg class="mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#12513c"/><path d="M9 9.5l7 8.2 7-8.2M16 17.7V23" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Yanyu<span class="accent">Ad</span></span></a><nav class="top-nav"><a class="nav-link" href="/licenses.html">许可</a></nav></div></header>
+<main class="page-shell">
+<section class="library" id="library" aria-label="模块目录">
+<div class="intro"><h1 class="title">Surge 模块</h1><p class="lede">按需安装，随时移除。</p></div>
+<div class="controls">
+<label class="search"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg><input id="search" type="search" placeholder="搜索" aria-label="搜索模块" autocomplete="off"></label>
+<div class="filters" id="categories" aria-label="分类"></div>
+</div>
+<div class="results"><span id="count">—</span><div class="sorts" id="sorts"><button data-sort="default" class="selected">默认</button><button data-sort="name">名称</button><button data-sort="date">更新</button></div></div>
 <div class="grid" id="grid" aria-live="polite"></div><div id="empty" hidden>没有匹配的模块</div><p class="error" id="error" hidden></p>
-<footer><span id="sync">正在读取同步状态</span><a href="/sources.html">来源与许可</a></footer></section></main>
-<dialog id="details" aria-labelledby="detail-title"><button id="close" class="dialog-close" aria-label="关闭">×</button><div id="detail-body"></div></dialog><div id="toast" role="status" aria-live="polite"></div><script type="module" src="/app.js"></script></body></html>
+<footer><span id="sync"></span><a href="/licenses.html">许可</a></footer>
+</section></main>
+<dialog id="details" aria-labelledby="detail-name"><button id="close" class="dialog-close" aria-label="关闭">×</button><div id="detail-body"></div></dialog><div id="toast" role="status" aria-live="polite"></div><script type="module" src="/app.js"></script></body></html>

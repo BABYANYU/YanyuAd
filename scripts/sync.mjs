@@ -35,7 +35,7 @@ async function main(){
  let unavailable=0;
  const plugins=await pool(full.plugins,4,async(p,index)=>{
   const id=p.filename.replace(/\.lpx$/i,'').replace(/[^a-zA-Z0-9_-]/g,'_')+'-'+sha(p.filename).slice(0,8);
-  const entry={id,name:String(p.name),desc:String(p.desc||'').replaceAll('\\n','\n'),tags:Array.isArray(p.tags)?p.tags.map(String):[],date:p.date||'',authors:(p.authors||[]).map(a=>({name:String(a.name||''),url:a.url||''})),featured:featuredIds.has(p.filename),sourceURL:p.url,filename:p.filename,icon:null,index};
+  const entry={id,name:String(p.name),desc:String(p.desc||'').replaceAll('\\n','\n'),tags:Array.isArray(p.tags)?p.tags.map(String):[],date:p.date||'',featured:featuredIds.has(p.filename),sourceURL:p.url,filename:p.filename,icon:null,index};
   try{
    const bytes=await download(p.url),text=bytes.toString('utf8');
    if(!/^#!name\s*=/m.test(text)||/^\s*</.test(text))throw Error('Source is not an LPX plugin');
