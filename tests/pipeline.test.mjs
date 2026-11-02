@@ -18,7 +18,7 @@ async function output(root,section='Body Rewrite'){
  const status={brand:'YanyuAd',generated_at:catalog.generated_at,total:10,upstream_total:10,skipped:0,scheduler_enabled:false,catalog_sha256:sha(JSON.stringify(catalog))};
  await writeFile(path.join(root,'data/catalog.json'),JSON.stringify(catalog));await writeFile(path.join(root,'status.json'),JSON.stringify(status));
  const js='const x=1;',url='/assets/app.'+sha(js).slice(0,12)+'.js';await writeFile(path.join(root,url.slice(1)),js);
- for(const page of ['index.html','licenses.html'])await writeFile(path.join(root,page),'<title>YanyuAd</title><script src="'+url+'"></script>');
+ for(const page of ['index.html','licenses.html'])await writeFile(path.join(root,page),'<title>YANYU AD</title><script src="'+url+'"></script>');
  await writeFile(path.join(root,'404.html'),'Not found');await writeFile(path.join(root,'_headers'),'/*\n');
  return catalog;
 }

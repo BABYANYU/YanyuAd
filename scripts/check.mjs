@@ -32,7 +32,7 @@ export async function checkOutput(root=DEFAULT_ROOT){
  if(files.length!==catalog.plugins.length)throw Error('Stray module files');
  for(const page of ['index.html','licenses.html']){
   const html=await readFile(path.join(root,page),'utf8');
-  if(!html.includes('YanyuAd'))throw Error('Stale frontend');
+  if(!html.includes('YANYU AD'))throw Error('Stale frontend');
   for(const asset of ['/app.js','/style.css'])if(html.includes('="'+asset+'"'))throw Error('Unversioned frontend asset');
   const references=[...html.matchAll(/(?:src|href)="(\/assets\/[^"\s]+)"/g)];
   if(!references.length)throw Error('Missing versioned frontend assets');
