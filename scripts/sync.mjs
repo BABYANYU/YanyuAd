@@ -8,6 +8,27 @@ const SOURCE='https://loonlab.103516.xyz/Plugin/';
 const UA='Loon/649 CFNetwork/1492.0.1 Darwin/23.3.0';
 const staging=path.join(ROOT,'.staging'),dist=path.join(ROOT,'dist');
 const sha=b=>createHash('sha256').update(b).digest('hex');
+// 资源文件名带内容哈希，避免 CDN 缓存旧脚本导致白屏。
+async function versionAssets(root){
+ const {readFile,writeFile,mkdir}=await import('node:fs/promises');
+ await mkdir(path.join(root,'assets'),{recursive:true});
+ const map={};
+ for(const name of ['app.js','style.css']){
+  const file=path.join(root,name);let body;
+  try{body=await readFile(file);}catch{continue;}
+  const hash=createHash('sha256').update(body).digest('hex').slice(0,12);
+  const ext=path.extname(name),out='/assets/'+path.basename(name,ext)+'.'+hash+ext;
+  await writeFile(path.join(root,out.slice(1)),body);
+  map[name]=out;
+ }
+ for(const page of ['index.html','licenses.html']){
+  const f=path.join(root,page);let html;
+  try{html=await readFile(f,'utf8');}catch{continue;}
+  for(const [name,out] of Object.entries(map)) html=html.split('/'+name).join(out);
+  await writeFile(f,html);
+ }
+}
+
 // 面向站点的输出清理：不展示署名与转换说明，仅保留可执行的配置行。
 const FORBIDDEN = /原作者|来源|可莉|署名|非商业|未在 Surge 中实测/;
 function sanitizeModule(text){
@@ -48,7 +69,7 @@ async function main(){
   try{const b=await json(url.href);if(b.brand!=='YanyuAd'||!b.total)throw Error('Invalid baseline');if(full.plugins.length<b.total*.9)throw Error('Source plugin count dropped by more than 10%');}
   catch(err){if(process.env.YANYUAD_INITIAL_BUILD!=='1')throw Error('Baseline check failed: '+err.message);}
  }
- await rm(staging,{recursive:true,force:true});await cp(path.join(ROOT,'public'),staging,{recursive:true});
+ await rm(staging,{recursive:true,force:true});await cp(path.join(ROOT,'public'),staging,{recursive:true});await versionAssets(staging);
  await mkdir(path.join(staging,'modules'),{recursive:true});await mkdir(path.join(staging,'data'),{recursive:true});await mkdir(path.join(staging,'icons'),{recursive:true});
  let unavailable=0;
  const plugins=await pool(full.plugins,4,async(p,index)=>{
