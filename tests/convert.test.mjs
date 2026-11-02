@@ -388,5 +388,5 @@ test('port bounds and source CIDRs reject malformed rules while keeping valid co
  ok('[Rule]\nSRC-IP,2001:db8::/32,DIRECT');
 });
 test('out-of-range numeric action arguments never emit Infinity into a module',()=>{
- bad(rr+cond+'reject('+ '9'.repeat(400)+')',/Numeric argument/);
+ bad(rr+'response if ${url} == \"https://example.org/\" then response.json.replace(\"value\",'+ '9'.repeat(400)+')',/Numeric argument/);
 });
