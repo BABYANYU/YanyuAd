@@ -114,7 +114,7 @@ GitHub → Settings → Secrets and variables → Actions → Variables：
 
 | 目的 | 操作 | 成功标准 |
 |---|---|---|
-| 自动更新 | 每日 10:23 定时运行 | Actions success，线上 `request_id` 与运行一致 |
+| 自动更新 | 每日 00:00 定时运行 | Actions success，线上 `request_id` 与运行一致 |
 | 手动更新 | Actions → `YanyuAd daily sync` → Run workflow | 同上 |
 | 暂停同步 | 仓库变量 `YANYUAD_ENABLED=false` | 站点保留最后一次成功版本 |
 | 恢复同步 | 变量改回 `true`，手动运行一次 | 核对 `request_id` |
@@ -188,3 +188,5 @@ GitHub → Settings → Secrets and variables → Actions → Variables：
 - 当前78项测试通过，包括分页、类别去重、桌面/手机筛选、搜索与排序重置、复制安装链接、关于弹窗开关、状态获取失败和文本注入回归。内置浏览器连接不可用，未声明完成真实浏览器截图/手机触控验收。
 
 - 品牌显示统一为“YANYU AD”：页头与关于标题采用同基线、9px间距，YANYU字重700、AD字重500；同步更新页面标题、说明、版权署名中的品牌名、许可页与404标题。域名、仓库名及catalog/status的机器标识`YanyuAd`保持兼容，不改变订阅路径。
+
+- 2026-11-02：每日同步统一为北京时间00:00（UTC前一日16:00，cron `0 16 * * *`）。这是计划触发时间；GitHub排队及Cloudflare构建需要额外时间，不保证零点整发布完成。
