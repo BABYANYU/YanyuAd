@@ -10,7 +10,6 @@ const staging=path.join(ROOT,'.staging'),dist=path.join(ROOT,'dist');
 const sha=b=>createHash('sha256').update(b).digest('hex');
 // 资源文件名带内容哈希，避免 CDN 缓存旧脚本导致白屏。
 async function versionAssets(root){
- const {readFile,writeFile,mkdir}=await import('node:fs/promises');
  await mkdir(path.join(root,'assets'),{recursive:true});
  const map={};
  for(const name of ['app.js','style.css']){
@@ -19,6 +18,7 @@ async function versionAssets(root){
   const hash=createHash('sha256').update(body).digest('hex').slice(0,12);
   const ext=path.extname(name),out='/assets/'+path.basename(name,ext)+'.'+hash+ext;
   await writeFile(path.join(root,out.slice(1)),body);
+  await rm(file,{force:true}); // 原文件已带哈希入 assets/，避免 dist 里留重复副本
   map[name]=out;
  }
  for(const page of ['index.html','licenses.html']){
@@ -29,23 +29,36 @@ async function versionAssets(root){
  }
 }
 
-// 面向站点的输出清理：不展示署名与转换说明，仅保留可执行的配置行。
-const FORBIDDEN = /原作者|来源|可莉|署名|非商业|未在 Surge 中实测/;
+// 面向站点的输出清理：去掉内部元数据与冗长说明，但保留两样东西：
+//   1. CC BY-NC-SA 4.0 要求的署名（否则与 /licenses 页自相矛盾）
+//   2. 影响安装结果的版本要求提示（否则用户装完不生效却看不到原因）
+const KEEP_NOTICE = /需要|最低|版本|iOS 5\.|macOS 5\.|jq/;
+const DROP_NOTICE = /原始版本元数据|未在 Surge 中实测/;
+const BOILERPLATE = /^# 由上游插件配置自动转换/;
+const LICENSE_LINE = '# 许可：上游内容 CC BY-NC-SA 4.0 · 来源 LoonLab';
 function sanitizeModule(text){
  const lines=text.replace(/\r\n?/g,'\n').split('\n');
  const kept=[];
  for(const line of lines){
-  if(FORBIDDEN.test(line))continue;
-  if(/^# 原始元数据：(author|homepage|loon_version)/.test(line))continue;
-  if(/^# 提示：/.test(line))continue;
+  if(/^# 原始元数据：/.test(line))continue;
+  if(BOILERPLATE.test(line))continue;
+  if(/^# 提示：/.test(line)&&(DROP_NOTICE.test(line)||!KEEP_NOTICE.test(line)))continue;
   kept.push(line);
  }
  let out=kept.join('\n').replace(/\n{3,}/g,'\n\n').trimEnd()+'\n';
  if(!/^#!name=/m.test(out))throw Error('Module lost its name after sanitizing');
  if(!/^\[(Rule|URL Rewrite|Header Rewrite|Body Rewrite|Map Local|Script|MITM)\]/m.test(out))throw Error('Module lost all actionable sections after sanitizing');
+ if(!out.includes(LICENSE_LINE)){
+  // 放在最后一条 #! 指令之后，紧跟头部，署名一眼可见
+  const lines2=out.split('\n');
+  let last=-1;
+  for(let i=0;i<lines2.length;i++)if(lines2[i].startsWith('#!'))last=i;
+  lines2.splice(last+1,0,LICENSE_LINE);
+  out=lines2.join('\n');
+ }
  return out;
 }
-function sanitizeText(value){return String(value||'').replace(/可莉\uD83C\uDDD5?/g,'').replace(/原作者|来源|署名|非商业/g,'').replace(/\s{2,}/g,' ').trim();}
+function sanitizeText(value){return String(value||'').replace(/可莉\uD83C\uDDD5?/g,'').replace(/\s{2,}/g,' ').trim();}
 
 const allowedHosts=new Set(['loon.103516.xyz','loonlab.103516.xyz']);
 async function download(url,max=2*1024*1024,ua=UA){
@@ -72,7 +85,7 @@ async function main(){
  await rm(staging,{recursive:true,force:true});await cp(path.join(ROOT,'public'),staging,{recursive:true});await versionAssets(staging);
  await mkdir(path.join(staging,'modules'),{recursive:true});await mkdir(path.join(staging,'data'),{recursive:true});await mkdir(path.join(staging,'icons'),{recursive:true});
  let unavailable=0;
- const plugins=await pool(full.plugins,4,async(p,index)=>{
+ const plugins=await pool(full.plugins,6,async(p,index)=>{
   const id=p.filename.replace(/\.lpx$/i,'').replace(/[^a-zA-Z0-9_-]/g,'_')+'-'+sha(p.filename).slice(0,8);
   const entry={id,name:String(p.name),desc:sanitizeText(String(p.desc||'').replaceAll('\\n','\n')),tags:Array.isArray(p.tags)?p.tags.map(String):[],date:p.date||'',featured:featuredIds.has(p.filename),sourceURL:p.url,filename:p.filename,icon:null,index};
   try{

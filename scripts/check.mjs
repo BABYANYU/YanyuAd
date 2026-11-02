@@ -12,6 +12,8 @@ async function main(){
  if(!Array.isArray(catalog.plugins)||catalog.plugins.length<10)throw Error('Catalog too small');
  if(status.total!==catalog.plugins.length)throw Error('Status total mismatch');
  if(status.catalog_sha256!==sha(JSON.stringify(catalog)))throw Error('Catalog hash mismatch, status stale');
+ if(typeof status.scheduler_enabled!=='boolean')throw Error('scheduler_enabled missing');
+ if(typeof status.generated_at!=='string'||Number.isNaN(Date.parse(status.generated_at)))throw Error('Bad generated_at');
  const seen=new Set();let converted=0;
  for(const p of catalog.plugins){
   if(seen.has(p.filename))throw Error('Duplicate plugin '+p.filename);seen.add(p.filename);
@@ -19,9 +21,12 @@ async function main(){
   converted++;
   {
    if(!p.module)throw Error('Missing module for '+p.filename);
+   if(typeof p.name!=='string'||!p.name.trim())throw Error('Missing name for '+p.filename);
    await exists(p.module);
    const mod=await readFile(path.join(ROOT,p.module.slice(1)),'utf8');
    if(!/^#!name=/m.test(mod)||!/^\[(Script|Rule|URL Rewrite|Map Local|MITM)\]/m.test(mod))throw Error('Suspicious module '+p.module);
+   const nm=/^#!name=(.+)$/m.exec(mod);
+   if(!nm||!nm[1].trim())throw Error('Empty module name in '+p.module);
   }
   if(p.icon)await exists(p.icon);
  }

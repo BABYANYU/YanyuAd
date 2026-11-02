@@ -38,7 +38,9 @@ function render(){
 }
 function home(){state.query='';state.tag='全部';state.sort='default';$('#search').value='';document.querySelectorAll('[data-sort]').forEach(b=>b.classList.toggle('selected',b.dataset.sort==='default'));document.querySelectorAll('[data-tag]').forEach(b=>b.classList.toggle('selected',b.dataset.tag==='全部'));if($('#details').open)$('#details').close();render();window.scrollTo(0,0);}
 $('#home').addEventListener('click',e=>{e.preventDefault();home();});
-$('#search').addEventListener('input',e=>{state.query=e.target.value;render();});
+// 目录最多 2000 条：输入时防抖，避免每次按键都重建全部卡片。
+let renderTimer;
+$('#search').addEventListener('input',e=>{state.query=e.target.value;clearTimeout(renderTimer);renderTimer=setTimeout(render,120);});
 document.querySelectorAll('[data-sort]').forEach(b=>b.addEventListener('click',()=>{state.sort=b.dataset.sort;document.querySelectorAll('[data-sort]').forEach(n=>n.classList.toggle('selected',n===b));render();}));
 $('#close').addEventListener('click',()=>$('#details').close());
 $('#details').addEventListener('click',e=>{if(e.target===$('#details')){const r=$('#details').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('#details').close();}});

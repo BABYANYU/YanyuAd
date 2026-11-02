@@ -3,6 +3,11 @@
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+# 内容哈希文件名，永不变化：强缓存一年
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
 
 /modules/*
   Content-Type: text/plain; charset=utf-8
@@ -17,9 +22,3 @@
 
 /icons/*
   Cache-Control: public, max-age=86400
-
-/app.js
-  Cache-Control: no-cache
-
-/style.css
-  Cache-Control: no-cache
