@@ -2,15 +2,16 @@ const $=s=>document.querySelector(s);
 const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n;};
 const state={query:'',tag:'全部',sort:'default'};
 let catalog=[];
-const safeURL=v=>{try{const u=new URL(v,location.origin);return['https:','http:'].includes(u.protocol)?u.href:null;}catch{return null;}};
+const safeURL=v=>{if(typeof v!=='string'||!v.trim())return null;try{const u=new URL(v,location.origin);return['https:','http:'].includes(u.protocol)?u.href:null;}catch{return null;}};
 let toastTimer;
 function toast(s){$('#toast').textContent=s;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),2200);}
-async function copy(s){try{await navigator.clipboard.writeText(s);toast('已复制');}catch{const t=el('textarea');t.value=s;document.body.append(t);t.select();try{document.execCommand('copy');toast('已复制');}catch{toast('复制失败');}t.remove();}}
+async function copy(s){try{await navigator.clipboard.writeText(s);toast('已复制');}catch{const t=el('textarea');t.value=s;document.body.append(t);t.select();try{if(!document.execCommand('copy'))throw Error('Copy rejected');toast('已复制');}catch{toast('复制失败');}t.remove();}}
 const moduleURL=p=>p.module?new URL(p.module,location.origin).href:null;
 const installURL=p=>{const u=moduleURL(p);return u?'surge:///install-module?url='+encodeURIComponent(u):null;};
 function actions(p){const box=el('div','actions');const url=moduleURL(p);const b=el('button','action','复制');b.type='button';b.addEventListener('click',()=>copy(url));b.setAttribute('aria-label','复制 '+p.name+' 链接');const a=el('a','action primary','安装');a.href=installURL(p);a.setAttribute('aria-label','安装 '+p.name);box.append(b,a);return box;}
 function showDetail(p){
- const box=$('#detail-body');box.replaceChildren(el('div','detail-name',p.name),el('p','detail-desc',p.desc||''));
+ const heading=el('h2','detail-name',p.name);heading.id='detail-name';
+ const box=$('#detail-body');box.replaceChildren(heading,el('p','detail-desc',p.desc||''));
  if(p.tags?.length||p.date){const row=el('div','detail-row');row.append(el('span',null,(p.tags||[]).join(' · ')||'模块'),el('span',null,(p.date||'').slice(0,16)));box.append(row);}
  const foot=el('div','detail-actions');foot.append(actions(p));box.append(foot);
  $('#details').showModal();

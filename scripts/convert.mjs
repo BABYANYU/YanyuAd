@@ -200,7 +200,10 @@ function parseValue(s, i) {
   const tok = s.slice(i, j).trim();
   if (tok === 'true' || tok === 'false') return { value: { t: 'bool', v: tok === 'true' }, end: j };
   if (tok === 'null') return { value: { t: 'null' }, end: j };
-  if (/^-?\d+(?:\.\d+)?$/.test(tok)) return { value: { t: 'num', v: Number(tok) }, end: j };
+  if (/^-?\d+(?:\.\d+)?$/.test(tok)) {
+    if (!Number.isFinite(Number(tok))) fail('Numeric argument is out of range');
+    return { value: { t: 'num', v: Number(tok) }, end: j };
+  }
   if (!tok) fail('Empty argument');
   return { value: { t: 'raw', v: tok }, end: j };
 }
@@ -303,9 +306,11 @@ function validateRuleValue(type, raw) {
   } else if (type === 'IP-ASN') {
     if (!/^\d{1,10}$/.test(value)) fail('Invalid ASN');
   } else if (type === 'DEST-PORT' || type === 'SRC-PORT' || type === 'IN-PORT') {
-    if (!/^\d{1,5}(?:-\d{1,5})?$/.test(value) || Number(value.split('-')[0]) > 65535) fail('Invalid port rule');
+    const match = /^(?:[<>]=?)?(\d{1,5})(?:-(\d{1,5}))?$/.exec(value);
+    if (!match || +match[1] > 65535 || (match[2] !== undefined && (+match[2] > 65535 || +match[1] > +match[2] || /^[<>]/.test(value)))) fail('Invalid port rule');
   } else if (type === 'SRC-IP') {
-    if (isIP(value) === 0 && !/^[^/]+\/\d+$/.test(value)) fail('Invalid source IP');
+    const [address, prefix, ...extra] = value.split('/'), family = isIP(address);
+    if (!family || extra.length || (prefix !== undefined && (!/^\d+$/.test(prefix) || +prefix > (family === 4 ? 32 : 128)))) fail('Invalid source IP');
   } else if (type === 'URL-REGEX') {
     pattern(value);
   } else if (type === 'USER-AGENT') {

@@ -380,3 +380,13 @@ test('lone CR becomes a real input line rather than injected module output', () 
   assert.ok(!r.content.includes('\r'));
   ok('[Rule]\rDOMAIN,x,REJECT');
 });
+
+test('port bounds and source CIDRs reject malformed rules while keeping valid comparisons',()=>{
+ for(const v of ['1-99999','443-80','>65536','>10-20'])bad('[Rule]\nDEST-PORT,'+v+',REJECT',/port/);
+ for(const v of ['not-an-ip/999','192.0.2.1/33','2001:db8::/129','1.2.3.4/','192.0.2.1/24/1'])bad('[Rule]\nSRC-IP,'+v+',DIRECT',/source IP/);
+ for(const v of ['>=50000','<=443','80-81'])ok('[Rule]\nSRC-PORT,'+v+',DIRECT');
+ ok('[Rule]\nSRC-IP,2001:db8::/32,DIRECT');
+});
+test('out-of-range numeric action arguments never emit Infinity into a module',()=>{
+ bad(rr+cond+'reject('+ '9'.repeat(400)+')',/Numeric argument/);
+});

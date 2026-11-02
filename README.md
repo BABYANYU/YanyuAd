@@ -87,8 +87,8 @@ GitHub → Settings → Secrets and variables → Actions → Variables：
 |---|---|
 | 源站不可达、返回跳转页 | 该条标记为不可用，**不发布** |
 | 失败条数超过总数 10% | 整次构建失败，保留上一成功部署 |
-| 源目录变小超过 10% | 构建失败，避免误删 |
-| 可发布模块为 0 | 构建失败 |
+| 源目录或可发布模块数量比上次减少超过 10% | 构建失败，避免源目录缩水或转换退化导致批量下架 |
+| 生产基线缺失、无效或可发布模块不足 | 构建失败；首次初始化例外仅限真实首次部署 |
 
 ### 版本依赖
 
@@ -129,9 +129,10 @@ GitHub → Settings → Secrets and variables → Actions → Variables：
 | 许可页 | `public/licenses.html`、`public/licenses/UPSTREAM.txt` |
 | 转换规则 | `scripts/convert.mjs` |
 | 抓取、转换、产出 | `scripts/sync.mjs` |
-| 产物校验 | `scripts/check.mjs` |
+| 产物校验 | `scripts/check.mjs`（模块、图标和前端内容哈希及目录引用） |
+| 发布保护、下载边界、输出清理 | `scripts/pipeline.mjs` |
 | 部署后校验 | `scripts/wait-for-deployment.mjs` |
-| 转换器测试 | `tests/convert.test.mjs` |
+| 测试 | `tests/convert.test.mjs`、`tests/pipeline.test.mjs`、`tests/ui.test.mjs` |
 
 改完必须本地通过：`npm test` → `node scripts/sync.mjs` → `node scripts/check.mjs`，再推送 `main`。
 
@@ -163,3 +164,14 @@ GitHub → Settings → Secrets and variables → Actions → Variables：
 | 4 | `scripts/check.mjs`（不通过即构建失败） |
 
 约束：不要放宽校验去强行发布；不要执行外部脚本；不要提交 `dist/`、密钥或账号信息。
+
+## 五、维护记录（2026-11-02）
+
+- 修复源数量与可发布模块数量的基线比较：分别使用上次 `upstream_total` 与 `total`，减少超过 10% 时阻止发布；不允许在缺少基线配置时静默执行生产构建。
+- 先校验 `.staging/` 再替换 `dist/`，替换失败自动恢复旧目录；中断后可从 `.dist-previous/` 恢复。上述目录都只用于本项目生成产物，禁止作为个人数据存储目录。不要手动删除暂存旧产物来绕过校验失败。
+- 统一模块分段校验，支持仅含 Body/Header Rewrite 的合法模块，拒绝仅有 MITM 的空动作模块；增加模块、图标、前端内容哈希及路径检查，保留 `404.html` 检查。新增 `module_sha256` / `icon_sha256` 是目录的向后兼容字段，不改变模块订阅路径。
+- 下载只接受无凭据 HTTPS，拒绝重定向和超限流；上游脚本本体仍不下载、不执行。源抓取或转换失败原因写入构建日志，图标缺失不影响模块转换。
+- 修复非法端口范围、错误源 IP/CIDR 及数值溢出，保留官方支持的端口比较表达式。语法参考：[Surge 源地址与端口规则](https://manual.nssurge.com/rules/source-and-port.html)。
+- 模块注释补回原作者署名；页面视觉设计保持。修复复制失败仍提示成功、无图标时请求 `/null`、详情弹窗缺少可访问标题。
+- 70 项测试通过，含真实同步脚本的断网、源目录减少、转换结果减少、基线缺失、产物损坏和目录切换失败测试。按生产基线完整构建通过：136 个源插件、134 个模块、134 个图标。134 个模块订阅路径全部保留，除补回作者注释外与优化前逐字节一致；另 2 项仍因设备级 DNS/IP 配置不适合 Surge 模块而跳过。
+- 本轮验证不等于手机 Surge 导入和第三方脚本运行实测；原有版本限制、未等价转换说明及外部脚本兼容性仍适用。未新增依赖、CF 项目、数据库或 VPS 服务。

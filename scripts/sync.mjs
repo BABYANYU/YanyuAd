@@ -1,13 +1,13 @@
-import {readFile,writeFile,mkdir,cp,rm,rename} from 'node:fs/promises';
-import {createHash} from 'node:crypto';
+import {readFile,writeFile,mkdir,cp,rm} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {convertPlugin} from './convert.mjs';
+import {download,sha,sanitizeModule,validateBaseline,guardCount,recoverOutput,publishOutput} from './pipeline.mjs';
+import {checkOutput} from './check.mjs';
 const ROOT=fileURLToPath(new URL('../',import.meta.url));
 const SOURCE='https://loonlab.103516.xyz/Plugin/';
-const UA='Loon/649 CFNetwork/1492.0.1 Darwin/23.3.0';
-const staging=path.join(ROOT,'.staging'),dist=path.join(ROOT,'dist');
-const sha=b=>createHash('sha256').update(b).digest('hex');
+const staging=path.join(ROOT,'.staging');
+
 // 资源文件名带内容哈希，避免 CDN 缓存旧脚本导致白屏。
 async function versionAssets(root){
  await mkdir(path.join(root,'assets'),{recursive:true});
@@ -15,7 +15,7 @@ async function versionAssets(root){
  for(const name of ['app.js','style.css']){
   const file=path.join(root,name);let body;
   try{body=await readFile(file);}catch{continue;}
-  const hash=createHash('sha256').update(body).digest('hex').slice(0,12);
+  const hash=sha(body).slice(0,12);
   const ext=path.extname(name),out='/assets/'+path.basename(name,ext)+'.'+hash+ext;
   await writeFile(path.join(root,out.slice(1)),body);
   await rm(file,{force:true}); // 原文件已带哈希入 assets/，避免 dist 里留重复副本
@@ -29,58 +29,28 @@ async function versionAssets(root){
  }
 }
 
-// 面向站点的输出清理：去掉内部元数据与冗长说明，但保留两样东西：
-//   1. CC BY-NC-SA 4.0 要求的署名（否则与 /licenses 页自相矛盾）
-//   2. 影响安装结果的版本要求提示（否则用户装完不生效却看不到原因）
-const KEEP_NOTICE = /需要|最低|版本|iOS 5\.|macOS 5\.|jq/;
-const DROP_NOTICE = /原始版本元数据|未在 Surge 中实测/;
-const BOILERPLATE = /^# 由上游插件配置自动转换/;
-const LICENSE_LINE = '# 许可：上游内容 CC BY-NC-SA 4.0 · 来源 LoonLab';
-function sanitizeModule(text){
- const lines=text.replace(/\r\n?/g,'\n').split('\n');
- const kept=[];
- for(const line of lines){
-  if(/^# 原始元数据：/.test(line))continue;
-  if(BOILERPLATE.test(line))continue;
-  if(/^# 提示：/.test(line)&&(DROP_NOTICE.test(line)||!KEEP_NOTICE.test(line)))continue;
-  kept.push(line);
- }
- let out=kept.join('\n').replace(/\n{3,}/g,'\n\n').trimEnd()+'\n';
- if(!/^#!name=/m.test(out))throw Error('Module lost its name after sanitizing');
- if(!/^\[(Rule|URL Rewrite|Header Rewrite|Body Rewrite|Map Local|Script|MITM)\]/m.test(out))throw Error('Module lost all actionable sections after sanitizing');
- if(!out.includes(LICENSE_LINE)){
-  // 放在最后一条 #! 指令之后，紧跟头部，署名一眼可见
-  const lines2=out.split('\n');
-  let last=-1;
-  for(let i=0;i<lines2.length;i++)if(lines2[i].startsWith('#!'))last=i;
-  lines2.splice(last+1,0,LICENSE_LINE);
-  out=lines2.join('\n');
- }
- return out;
-}
 function sanitizeText(value){return String(value||'').replace(/可莉\uD83C\uDDD5?/g,'').replace(/\s{2,}/g,' ').trim();}
 
 const allowedHosts=new Set(['loon.103516.xyz','loonlab.103516.xyz']);
-async function download(url,max=2*1024*1024,ua=UA){
- const u=new URL(url);if(u.protocol!=='https:')throw Error('Only HTTPS sources allowed');
- const res=await fetch(u,{headers:{'User-Agent':ua},signal:AbortSignal.timeout(25000)});
- if(!res.ok)throw Error('Source HTTP '+res.status);
- if(new URL(res.url).hostname!==u.hostname)throw Error('Unexpected redirected source');
- if(Number(res.headers.get('content-length'))>max)throw Error('Source too large');
- const reader=res.body.getReader();let chunks=[],n=0;for(;;){const {done,value}=await reader.read();if(done)break;n+=value.length;if(n>max){await reader.cancel();throw Error('Source too large');}chunks.push(value);}return Buffer.concat(chunks);
-}
 async function json(url){return JSON.parse((await download(url,3*1024*1024,'Mozilla/5.0 YanyuAdSync/1.0')).toString());}
 async function pool(items,n,fn){let index=0;const out=new Array(items.length);await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{for(;;){const i=index++;if(i>=items.length)return;out[i]=await fn(items[i],i);}}));return out;}
-function validateIndex(value){if(!value||!Array.isArray(value.plugins)||value.plugins.length<10||value.plugins.length>2000)throw Error('Invalid or unexpectedly small source catalog');const ids=new Set();for(const p of value.plugins){if(!p.name||!p.filename||!p.url)throw Error('Invalid plugin record');const u=new URL(p.url);if(u.protocol!=='https:'||!allowedHosts.has(u.hostname)||!u.pathname.startsWith('/Plugin/')||!u.pathname.endsWith('.lpx'))throw Error('Unexpected plugin source');if(ids.has(p.filename))throw Error('Duplicate plugin filename');ids.add(p.filename);}return value;}
+function validateIndex(value){if(!value||!Array.isArray(value.plugins)||value.plugins.length<10||value.plugins.length>2000)throw Error('Invalid or unexpectedly small source catalog');const ids=new Set();for(const p of value.plugins){if(typeof p.name!=='string'||!p.name.trim()||typeof p.filename!=='string'||!p.filename||typeof p.url!=='string')throw Error('Invalid plugin record');const u=new URL(p.url);if(u.protocol!=='https:'||u.username||u.password||u.port||u.hash||!allowedHosts.has(u.hostname)||!u.pathname.startsWith('/Plugin/')||!u.pathname.endsWith('.lpx'))throw Error('Unexpected plugin source');if(ids.has(p.filename))throw Error('Duplicate plugin filename');ids.add(p.filename);}return value;}
 async function main(){
+ await recoverOutput(ROOT);
  const [featured,full]=await Promise.all([json(SOURCE+'plugins.json').then(validateIndex),json(SOURCE+'plugins.all.json').then(validateIndex)]);
  const featuredIds=new Set(featured.plugins.map(p=>p.filename));
  const fullIds=new Set(full.plugins.map(p=>p.filename));
  if([...featuredIds].some(id=>!fullIds.has(id)))throw Error('Featured list is not a subset of full catalog');
- if(process.argv.includes('--production')&&process.env.YANYUAD_BASELINE_URL){
-  const url=new URL(process.env.YANYUAD_BASELINE_URL);if(!['ad.fakeyou.eu.org','yanyuad.pages.dev'].includes(url.hostname)||url.pathname!=='/status.json'||url.protocol!=='https:')throw Error('Invalid baseline URL');
-  try{const b=await json(url.href);if(b.brand!=='YanyuAd'||!b.total)throw Error('Invalid baseline');if(full.plugins.length<b.total*.9)throw Error('Source plugin count dropped by more than 10%');}
-  catch(err){if(process.env.YANYUAD_INITIAL_BUILD!=='1')throw Error('Baseline check failed: '+err.message);}
+ let baseline=null;
+ if(process.argv.includes('--production')){
+  const raw=process.env.YANYUAD_BASELINE_URL,initial=process.env.YANYUAD_INITIAL_BUILD==='1';
+  if(!raw&&!initial)throw Error('Missing production baseline URL');
+  if(raw){
+   const url=new URL(raw);if(!['ad.fakeyou.eu.org','yanyuad.pages.dev'].includes(url.hostname)||url.pathname!=='/status.json'||url.protocol!=='https:')throw Error('Invalid baseline URL');
+   try{baseline=validateBaseline(await json(url.href));}
+   catch(err){if(!initial)throw Error('Baseline check failed: '+err.message);}
+  }
+  if(baseline)guardCount(full.plugins.length,baseline.upstream_total,'Source plugin');
  }
  await rm(staging,{recursive:true,force:true});await cp(path.join(ROOT,'public'),staging,{recursive:true});await versionAssets(staging);
  await mkdir(path.join(staging,'modules'),{recursive:true});await mkdir(path.join(staging,'data'),{recursive:true});await mkdir(path.join(staging,'icons'),{recursive:true});
@@ -95,25 +65,26 @@ async function main(){
    Object.assign(entry,{status:result.status,source_sha256:sha(bytes),module:null});
    if(result.status==='converted'){
     if(!result.content||!/^#!name\s*=/m.test(result.content))throw Error('Converter produced invalid module');
-    entry.module='/modules/'+id+'.sgmodule';await writeFile(path.join(staging,entry.module.slice(1)),sanitizeModule(result.content));
-   }
-  }catch(err){unavailable++;Object.assign(entry,{status:'unavailable',module:null});}
+    const content=sanitizeModule(result.content);entry.module='/modules/'+id+'.sgmodule';entry.module_sha256=sha(content);await writeFile(path.join(staging,entry.module.slice(1)),content);
+   }else{console.warn('PLUGIN_UNSUPPORTED:',p.filename,result.reason);}
+  }catch(err){console.warn('PLUGIN_UNAVAILABLE:',p.filename,err.message);unavailable++;Object.assign(entry,{status:'unavailable',module:null});}
   try{
-   if(p.icon){const u=new URL(p.icon);if(['raw.githubusercontent.com','loonlab.103516.xyz','loon.103516.xyz','github.com'].includes(u.hostname)){
+   if(entry.status==='converted'&&p.icon){const u=new URL(p.icon);if(['raw.githubusercontent.com','loonlab.103516.xyz','loon.103516.xyz','github.com'].includes(u.hostname)){
     const b=await download(u.href,1024*1024);const png=b.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex')),jpg=b[0]===255&&b[1]===216,webp=b.subarray(8,12).toString()==='WEBP';
-    if(png||jpg||webp){const f=id+(png?'.png':jpg?'.jpg':'.webp');entry.icon='/icons/'+f;await writeFile(path.join(staging,'icons',f),b);}
+    if(png||jpg||webp){const f=id+(png?'.png':jpg?'.jpg':'.webp');await writeFile(path.join(staging,'icons',f),b);entry.icon='/icons/'+f;entry.icon_sha256=sha(b);}
    }}
   }catch{/* Missing icons use an original text placeholder; never fail plugin conversion. */}
   return entry;
  });
  const skipped=plugins.filter(p=>p.status!=='converted').length;
  const usable=plugins.filter(p=>p.status==='converted');
- if(unavailable>Math.max(3,Math.ceil(plugins.length*.1)))throw Error('Too many source failures; preserve last successful deployment');
+ if(unavailable>plugins.length*.1)throw Error('Too many source failures; preserve last successful deployment');
  if(!usable.length)throw Error('No convertible plugins; preserve last successful deployment');
+ if(baseline)guardCount(usable.length,baseline.total,'Publishable module');
  const generated_at=new Date().toISOString();let request_id=null;try{request_id=JSON.parse(await readFile(path.join(ROOT,'.sync-request.json'),'utf8')).id;}catch{}
  const catalog={brand:'YanyuAd',version:1,generated_at,upstream_updated:full.last_updated,source:SOURCE,plugins:usable};
  const status={brand:'YanyuAd',version:1,generated_at,request_id,total:usable.length,skipped,upstream_total:plugins.length,featured:usable.filter(p=>p.featured).length,scheduler_enabled:process.env.YANYUAD_SCHEDULER_ENABLED==='true',source:SOURCE,catalog_sha256:sha(JSON.stringify(catalog))};
  await writeFile(path.join(staging,'data/catalog.json'),JSON.stringify(catalog));await writeFile(path.join(staging,'status.json'),JSON.stringify(status));
- await rm(dist,{recursive:true,force:true});await rename(staging,dist);console.log(JSON.stringify(status));
+ await publishOutput(ROOT,checkOutput);console.log(JSON.stringify(status));
 }
 main().catch(e=>{console.error('SYNC_FAILED:',e.message);process.exitCode=1;});

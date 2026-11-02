@@ -1,5 +1,7 @@
 dist/
 .staging/
+.dist-previous/
+.test-work/
 .cache/
 node_modules/
 .sync-request.json.bak
