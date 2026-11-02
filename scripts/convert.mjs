@@ -1073,7 +1073,7 @@ export function convertPlugin(text, { name, sourceURL } = {}) {
       const deviceOnly = (general.length || hostSettings.length)
         && [...sections.keys()].every(k => k === 'MITM');
       if (deviceOnly) {
-        fail('No actionable supported directives：该插件仅包含 Surge 模块无法表达的 DNS/Host/IP 配置（[General]/[Host]/[IP Rewrite]），Surge 模块无法声明这些设备级设置');
+        fail('No actionable supported directives：当前转换器尚未实现 DNS/Host/IP 配置（[General]/[Host]/[IP Rewrite]）的等价转换，本次不发布');
       }
       fail('No actionable supported directives');
     }
@@ -1101,7 +1101,7 @@ export function convertPlugin(text, { name, sourceURL } = {}) {
     if (sections.has('Header Rewrite')) warn('Header Rewrite 在 Surge 官方文档中未标注最低版本；旧客户端可能无法识别该段，安装报错请升级。');
     if (sections.has('Map Local')) warn('Map Local 需要 Surge iOS 5.9.1+ / macOS 5.5.1+；响应头可能与原插件不同。');
     if (metadata.has('loon_version')) warn('原始版本元数据仅作来源记录，不代表 Surge 兼容性。');
-    if (general.length) warn('[General] 段为设备级设置，Surge 模块无法声明，已在注释中保留原文。');
+    if (general.length) warn('[General] 段尚未转换，已在注释中保留，需按 Surge 的可用参数人工核对。');
     if (hostSettings.length) warn('[Host]/[IP Rewrite] 段未转换，见模块内注释。');
     if (unconverted.length) warn(`有 ${unconverted.length} 个动作无法完全等价，已在模块内以注释标注。`);
 
@@ -1135,7 +1135,7 @@ export function convertPlugin(text, { name, sourceURL } = {}) {
       }
     }
     if (general.length) {
-      output.push('', '# 原插件 [General] 设置（Surge 模块无法声明，需手动加入主配置）：');
+      output.push('', '# 原插件 [General] 设置（尚未转换，需按 Surge 参数人工核对）：');
       for (const g of general) output.push(`#   ${g}`);
     }
     if (hostSettings.length) {
