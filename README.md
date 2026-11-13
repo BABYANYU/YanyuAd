@@ -27,7 +27,7 @@ Surge 模块目录：把公开插件配置转换为 Surge 模块，静态站每�
 |---|---|
 | 框架预设 | 无 |
 | 根目录 | `/` |
-| 构建命令 | `node --test tests/*.test.mjs && node scripts/sync.mjs --production && node scripts/check.mjs` |
+| 构建命令 | `node --test --test-concurrency=1 tests/*.test.mjs && node scripts/sync.mjs --production && node scripts/check.mjs` |
 | 输出目录 | `dist` |
 
 4. 环境变量（Production）：
