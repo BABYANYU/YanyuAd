@@ -54,6 +54,8 @@ GitHub → Settings → Secrets and variables → Actions → Variables：
 | `YANYUAD_PUBLIC_BASE_URL` | `https://ad.fakeyou.eu.org` |
 | `YANYUAD_ENABLED` | `true`（首次部署成功后再开） |
 
+同步验证优先查询自定义域名的状态文件。无法验证时，再查询 `yanyuad.pages.dev`。两个入口均要求状态文件的 `request_id` 与本次运行一致。
+
 ### 5. 验收
 
 | 检查 | 预期 |
