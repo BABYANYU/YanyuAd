@@ -390,3 +390,63 @@ test('port bounds and source CIDRs reject malformed rules while keeping valid co
 test('out-of-range numeric action arguments never emit Infinity into a module',()=>{
  bad(rr+'response if ${url} == \"https://example.org/\" then response.json.replace(\"value\",'+ '9'.repeat(400)+')',/Numeric argument/);
 });
+
+test('body and header regex i flags survive conversion', () => {
+  const r = ok(rr + String.raw`response if ${'${url}'} ~= /^https:\/\/a\.example\//i then response.body.replace(/foo/i, "bar")`
+    + '\n' + String.raw`response if ${'${url}'} ~= /^https:\/\/b\.example\//i then response.header.replace("X-Test", /foo/i, "bar")`);
+  assert.ok(r.content.includes('(?i)foo bar'));
+  assert.ok(r.content.includes('header-replace-regex X-Test (?i)foo bar'));
+});
+
+test('request JSON actions cannot be emitted as response rewrites', () => {
+  bad(rr + String.raw`request if ${'${url}'} ~= /^https:\/\/a\.example\//i then response.json.jq(".x=0")`, /只能用于 response/);
+});
+
+test('quoted script values reject trailing source', () => {
+  bad('[Script]\nhttp-request ^https://x/ script-path="https://e.example/a.js"junk', /Trailing characters/);
+  bad(String.raw`[Script]
+cron "* * * * *" then script("https://e.example/a.js" junk)`, /Trailing characters|Malformed script argument/);
+});
+
+test('legacy script arguments survive quoted commas, equals and escaped quotes', () => {
+  for (const argument of ['foo=bar&enabled=false', 'list=a,b&name="demo"', 'path=one\\two', '']) {
+    const r = ok('[Script]\nhttp-request ^https://x/ script-path=https://e.example/a.js,argument=' + JSON.stringify(argument));
+    if (argument) assert.ok(r.content.includes('argument=' + JSON.stringify(argument)), r.content);
+    else assert.doesNotMatch(r.content, /, argument=/);
+  }
+  const r = ok('[Script]\nhttp-response ^https://x/ script-path=https://e.example/a.js,argument=foo=bar');
+  assert.ok(r.content.includes('argument="foo=bar"'));
+});
+
+test('script call arguments reject trailing tokens and ambiguous duplicate sources', () => {
+  for (const suffix of [' junk', ', "extra"', ',']) {
+    bad('[Rule]\nDOMAIN,x,REJECT\n[Script]\ncron "0 8 * * *" then script("https://e.example/a.js", "foo=bar"' + suffix + ')', /Trailing characters|Malformed script argument/);
+  }
+  bad('[Script]\ncron "0 8 * * *" then script("https://e.example/a.js", "foo=bar") with argument="other=value"', /Duplicate script argument/);
+  const r = ok('[Script]\ncron "0 8 * * *" then script("https://e.example/a.js", "foo=bar"   )');
+  assert.ok(r.content.includes('argument="foo=bar"'));
+});
+
+test('URL regex normalization preserves whitespace semantics and quantifiers across sections', () => {
+  const condition = String.raw`response if ${'${url}'} ~= /^https:\/\/x\/a b\d{1, 3}/i then `;
+  const expected = String.raw`(?i)^https://x/a\x20b\d{1,3}`;
+  for (const [section, action] of [
+    ['Rewrite', 'response.json.jq(".a=[]")'],
+    ['Rewrite', 'response.header.del("X-Test")'],
+    ['Rewrite', 'response.body.mock("text", "x", 200)'],
+    ['Script', 'script("https://e.example/a.js")'],
+  ]) {
+    const r = ok('[' + section + ']\n' + condition + action);
+    assert.ok(r.content.includes(expected), r.content);
+    assert.ok(!r.content.includes('/a b'), r.content);
+  }
+  const r = ok('[Rewrite]\n' + condition.replace('response if', 'request if') + 'redirect(302, "https://safe.example/")');
+  assert.ok(r.content.includes(String.raw`a\x20b\d{1,3}`));
+});
+
+test('escaped argument defaults cannot inject module sections', () => {
+  bad(String.raw`[Argument]
+a = input, "x\n[Rule]\nDOMAIN,injected.example,DIRECT"
+[Rule]
+DOMAIN,x,REJECT`, /Control character/);
+});

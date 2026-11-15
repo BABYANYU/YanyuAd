@@ -54,7 +54,7 @@ GitHub → Settings → Secrets and variables → Actions → Variables：
 | `YANYUAD_PUBLIC_BASE_URL` | `https://ad.fakeyou.eu.org` |
 | `YANYUAD_ENABLED` | `true`（首次部署成功后再开） |
 
-同步验证优先查询自定义域名的状态文件。无法验证时，再查询 `yanyuad.pages.dev`。两个入口均要求状态文件的 `request_id` 与本次运行一致。
+同步验收必须通过 `YANYUAD_PUBLIC_BASE_URL` 指定的正式入口：核对本次 request_id、生成时间、目录数量与 SHA-256，抽查三个模块及前端版本化资源。`yanyuad.pages.dev` 仅用于故障诊断，不再以备用入口成功掩盖正式域名失败。工作流在最新 main 上重新测试并生成请求提交，遇到非快进竞争有限重试，禁止强制推送。
 
 ### 5. 验收
 
@@ -192,3 +192,7 @@ GitHub → Settings → Secrets and variables → Actions → Variables：
 - 品牌显示统一为“YANYU AD”：页头与关于标题采用同基线、9px间距，YANYU字重700、AD字重500；同步更新页面标题、说明、版权署名中的品牌名、许可页与404标题。域名、仓库名及catalog/status的机器标识`YanyuAd`保持兼容，不改变订阅路径。
 
 - 2026-11-02：每日同步统一为北京时间00:00（UTC前一日16:00，cron `0 16 * * *`）。这是计划触发时间；GitHub排队及Cloudflare构建需要额外时间，不保证零点整发布完成。
+
+### 2026-11-15 全面审查
+
+已加固转换器参数及正则处理、下载重试与压缩响应检查、并发同步锁、产物一致性、前端数据校验和正式域名验收。完整问题、测试与后续排障说明见 [维护记录](documentation/AUDIT-2026-11-15.md)。页面视觉、Telegram联系方式与每日00:00计划均保持不变。

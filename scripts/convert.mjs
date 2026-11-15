@@ -67,7 +67,10 @@ function scanQuoted(s, i) {
       j += 2;
       continue;
     }
-    if (c === '"') return { value: out, end: j + 1 };
+    if (c === '"') {
+      if (/[\r\n\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(out)) fail('Control character in string');
+      return { value: out, end: j + 1 };
+    }
     if (c === '\n' || c === '\r') fail('Newline in string');
     out += c; j++;
   }
@@ -443,12 +446,13 @@ function jqValue(v) {
   }
 }
 
-function bodyPattern(s) {
+function bodyPattern(s, flags = '') {
   if (!s || /[\r\n\u0000-\u001f\u007f]/.test(s)) fail('Unsafe body regex');
   if (/\s/.test(s)) soft('Body Rewrite 正则含空白，无法在单行表达');
+  if (!['', 'i'].includes(flags)) fail(`Unsupported regex flags: ${flags}`);
   if (/\(\?[a-z-]+[:)]|\\[pPkKgG]|\(\?<[^=!]/.test(s)) fail('Unsupported cross-engine regex construct');
   try { new RegExp(s.replace(/\(\?>/g, '(?:')); } catch { fail('Invalid or unsupported regex'); }
-  return s;
+  return (flags === 'i' ? '(?i)' : '') + s;
 }
 
 // ---------------------------------------------------------------- line builders
@@ -497,9 +501,10 @@ function parseCondition(text, args) {
     if ((m = /^\$\{url\}\s*~=\s*(\/[\s\S]*)$/.exec(term))) {
       if (/\s+as\s+[A-Za-z_]\w*\s*$/.test(m[1])) result.aliased = true;
       const lit = regexTerm(m[1].replace(/\s+as\s+[A-Za-z_]\w*\s*$/, ''));
-      pattern(lit.raw);
-      if (result.pattern && result.pattern !== lit.p) result.dropped.push(term);
-      else { result.pattern = lit.p; result.src = lit.raw; result.flags = lit.flags; }
+      const normalized = pattern(lit.raw);
+      const converted = (lit.flags === 'i' ? '(?i)' : '') + normalized;
+      if (result.pattern && result.pattern !== converted) result.dropped.push(term);
+      else { result.pattern = converted; result.src = normalized; result.flags = lit.flags; }
       continue;
     }
     if ((m = /^\$\{url\}\s*==\s*("(?:[^"\\]|\\.)*")$/.exec(term))) {
@@ -592,6 +597,9 @@ function actionOps(ctx, call) {
   const ops = [], notes = [];
   const name = call.name.toLowerCase();
   const a = call.args;
+  if ((name.startsWith('response.json.') || name === 'response.body.mock' || name === 'response.body.mock_file')
+    && phase !== 'response') fail(`${name} 只能用于 response 条件`);
+  if (name === 'request.body.mock' || name === 'request.body.mock_file') fail(`${name} 不受 Surge Map Local 支持`);
 
   const headerAction = (field, action, value) => {
     if (value !== undefined && /\s/.test(value)) notes.push('# 提示：响应头值含空格，Surge 以空格分隔参数，必要时请手工核对。');
@@ -607,8 +615,8 @@ function actionOps(ctx, call) {
       const re = a[1];
       if (!re || re.t !== 'regex') fail('header.replace expects a regex literal');
       if (!re.raw) fail('Empty header regex');
-      bodyPattern(re.raw);
-      headerAction(strArg(a[0], 'header'), 'header-replace-regex', `${re.raw} ${strArg(a[2], 'header replacement')}`);
+      const headerRegex = bodyPattern(re.raw, re.flags);
+      headerAction(strArg(a[0], 'header'), 'header-replace-regex', `${headerRegex} ${strArg(a[2], 'header replacement')}`);
     } else soft(`Unsupported header action: ${suffix}`);
   };
 
@@ -675,7 +683,7 @@ function actionOps(ctx, call) {
     for (let i = 0; i < regexes.length; i++) {
       if (!regexes[i] || regexes[i].t !== 'regex') fail('body.replace expects regex literals');
       try {
-        ops.push({ kind: 'body', phase, p, regex: bodyPattern(regexes[i].raw), repl: repls[i] });
+        ops.push({ kind: 'body', phase, p, regex: bodyPattern(regexes[i].raw, regexes[i].flags), repl: repls[i] });
       } catch (e) {
         if (e instanceof Fatal) throw e;
         (ctx.skips || (ctx.skips = [])).push({ source: call.raw, reason: `第 ${i + 1} 组替换：${e.message}` });
@@ -753,7 +761,11 @@ function parseSettings(text) {
     const key = m[1].toLowerCase().replaceAll('_', '-');
     if (out.has(key)) fail(`Duplicate script parameter: ${key}`);
     let value = m[2];
-    if (value.startsWith('"')) value = scanQuoted(value, 0).value;
+    if (value.startsWith('"')) {
+      const parsed = scanQuoted(value, 0);
+      if (value.slice(parsed.end).trim()) fail('Trailing characters after quoted script parameter');
+      value = parsed.value;
+    }
     out.set(key, value);
   }
   return out;
@@ -763,8 +775,11 @@ function parseScriptCall(rest) {
   const m = /^script\s*\(([\s\S]*)\)\s*(?:with\s+([\s\S]*))?$/.exec(rest.trim());
   if (!m) fail('Unsupported script expression');
   const parts = splitTop(m[1], ',');
-  const url = strArg(parseValue(parts[0], 0).value, 'script URL');
-  return { url, argSpec: parts.slice(1).join(',').trim(), settings: parseSettings(m[2] || '') };
+  if (parts.length > 2 || parts.some(p => !p.trim())) fail('Malformed script argument list');
+  const parsed = parseValue(parts[0], 0);
+  if (parts[0].slice(parsed.end).trim()) fail('Trailing characters after script URL');
+  const url = strArg(parsed.value, 'script URL');
+  return { url, argSpec: (parts[1] || '').trim(), settings: parseSettings(m[2] || '') };
 }
 
 function scriptArgument(argSpec, args) {
@@ -779,7 +794,11 @@ function scriptArgument(argSpec, args) {
       return `${arg.name}={{{${arg.name}}}}`;
     }).join('&');
   }
-  if (argSpec.startsWith('"')) return scanQuoted(argSpec, 0).value;
+  if (argSpec.startsWith('"')) {
+    const parsed = scanQuoted(argSpec, 0);
+    if (argSpec.slice(parsed.end).trim()) fail('Trailing characters after script argument');
+    return parsed.value;
+  }
   soft('Unsupported script argument form');
 }
 
@@ -814,8 +833,13 @@ function scriptLine(spec, args, ctx) {
   }
   if (s.has('tag')) ctx.notes.push(`# 原始脚本标签：${oneLine(s.get('tag'), 'script tag')}`);
   if (s.has('img-url')) ctx.warn('脚本图标 img_url 为 Loon 专有参数，已忽略。');
-  const arg = scriptArgument(spec.argSpec, args);
-  if (arg) fields.push(`argument=${JSON.stringify(arg)}`);
+  const configuredArgument = s.get('argument');
+  if (spec.argSpec && configuredArgument !== undefined) fail('Duplicate script argument');
+  const arg = spec.argSpec ? scriptArgument(spec.argSpec, args) : configuredArgument || '';
+  if (arg) {
+    if (/[\r\n\u0000-\u001f\u007f]/.test(arg)) fail('Unsafe script argument');
+    fields.push(`argument=${JSON.stringify(arg)}`);
+  }
   return fields.join(', ');
 }
 

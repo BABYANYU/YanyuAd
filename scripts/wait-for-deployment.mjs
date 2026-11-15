@@ -1,48 +1,19 @@
 import {setTimeout as sleep} from 'node:timers/promises';
-
-const id = process.env.SYNC_REQUEST_ID;
-const primary = process.env.YANYUAD_PUBLIC_BASE_URL?.replace(/\/$/, '');
-const pages = 'https://yanyuad.pages.dev';
-if (!id || !primary) throw Error('Missing YANYUAD_PUBLIC_BASE_URL or SYNC_REQUEST_ID');
-if (![pages, 'https://ad.fakeyou.eu.org'].includes(primary)) throw Error('Unexpected public base URL');
-
-const origins = [...new Set([primary, pages])];
-const deadline = Date.now() + 20 * 60 * 1000;
-
-async function verify(origin) {
-  const response = await fetch(`${origin}/status.json?t=${Date.now()}`, {
-    cache: 'no-store',
-    redirect: 'error',
-    signal: AbortSignal.timeout(20000),
-  });
-  if (!response.ok) throw Error(`HTTP ${response.status}`);
-  const status = await response.json();
-  if (status?.brand !== 'YanyuAd' || !Number.isSafeInteger(status.total) || status.total <= 0) {
-    throw Error('Invalid status payload');
+import {readFile} from 'node:fs/promises';
+import {publicBaseURL,validateRequest,verifyDeployment,boundedFetch} from './deployment-acceptance.mjs';
+const primary=publicBaseURL(process.env.YANYUAD_PUBLIC_BASE_URL);
+const request=validateRequest(JSON.parse(await readFile(new URL('../.sync-request.json',import.meta.url),'utf8')),process.env.SYNC_REQUEST_ID);
+const deadline=Date.now()+20*60*1000;
+for(;;){
+ try{const result=await verifyDeployment({origin:primary,request,signal:AbortSignal.timeout(Math.max(1,deadline-Date.now()))});console.log(JSON.stringify({published:true,...result}));break;}
+ catch(error){
+  let fallback;
+  if(primary!=='https://yanyuad.pages.dev'){
+   try{const d=JSON.parse((await boundedFetch(new URL('https://yanyuad.pages.dev/status.json?verify='+request.id),{maxBytes:65536})).toString());fallback={request_id:d.request_id,total:d.total};}
+   catch{fallback={available:false};}
   }
-  const summary = `request_id=${status.request_id} total=${status.total} scheduler=${status.scheduler_enabled}`;
-  if (status.request_id !== id || status.scheduler_enabled !== true) throw Error(summary);
-  return summary;
-}
-
-for (;;) {
-  const failures = [];
-  let verified = false;
-  for (const origin of origins) {
-    try {
-      const status = await verify(origin);
-      if (failures.length) console.warn(failures.join(' | '));
-      console.log(`Deployment verified via ${origin}: ${status}`);
-      verified = true;
-      break;
-    } catch (error) {
-      const cause = error.cause?.code;
-      failures.push(`${origin}: ${error.message}${cause ? ` (${cause})` : ''}`);
-    }
-  }
-  if (verified) break;
-  const details = failures.join(' | ');
-  if (Date.now() >= deadline) throw Error(`Timed out waiting for deployment: ${details}`);
-  console.log(`Waiting for deployment: ${details}`);
-  await sleep(Math.min(45000, deadline - Date.now()));
+  console.log(JSON.stringify({waiting:true,origin:primary,error:error.message,pages_diagnostic:fallback}));
+  if(Date.now()>=deadline)throw Error('Requested deployment did not pass public-site acceptance within 20 minutes');
+  await sleep(Math.min(30000,deadline-Date.now()));
+ }
 }

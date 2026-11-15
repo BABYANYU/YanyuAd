@@ -7,7 +7,7 @@ const html=await readFile(new URL('../public/index.html',import.meta.url),'utf8'
 class Element{
  constructor(tag='div'){this.tagName=tag.toUpperCase();this.children=[];this.events={};this.dataset={};this.attributes={};this._text='';this.value='';this.hidden=false;this.open=false;this.classes=new Set();this.classList={add:c=>this.classes.add(c),remove:c=>this.classes.delete(c),toggle:(c,on)=>on?this.classes.add(c):this.classes.delete(c)};}
  set textContent(v){this._text=String(v);this.children=[];}get textContent(){return this._text+this.children.map(c=>c.textContent).join('');}
- append(...items){for(const item of items){if(item.tagName==='FRAGMENT'){this.append(...item.children);item.children=[];}else{item.parent=this;this.children.push(item);}}}
+ append(...items){for(const item of items){if(item.tagName==='FRAGMENT'){this.append(...item.children);item.children=[];}else{if(item.parentNode){const old=item.parentNode.children;const at=old.indexOf(item);if(at!==-1)old.splice(at,1);}item.parent=this;item.parentNode=this;this.children.push(item);}}}
  replaceChildren(...items){this.children=[];this._text='';this.append(...items);}setAttribute(k,v){this.attributes[k]=v;}
  addEventListener(k,f){(this.events[k]??=[]).push(f);}async emit(k,init={}){await Promise.all((this.events[k]||[]).map(f=>f({target:this,key:'',preventDefault(){},...init})));}
  select(){}focus(){this.focused=true;}scrollIntoView(){this.scrolled=true;}remove(){this.removed=true;}replaceWith(item){const at=this.parent.children.indexOf(this);this.parent.children[at]=item;item.parent=this.parent;}
@@ -23,7 +23,7 @@ async function fixture(legacyCopyResult=false,options={}){
  const fetch=async url=>{if(url==='/status.json'){if(options.failStatus)throw Error('status unavailable');return {ok:true,json:async()=>({brand:'YanyuAd',scheduler_enabled:options.scheduler!==false})};}if(options.failCatalog)throw Error('catalog unavailable');return {ok:true,json:async()=>({brand:'YanyuAd',generated_at:'2026-11-02T00:00:00Z',plugins:list})};};
  await vm.runInNewContext('(async()=>{'+source+'})()',{document,navigator:{clipboard:{writeText:async s=>{if(!options.clipboardSuccess)throw Error('denied');copied.push(s);}}},location:{origin:'https://ad.fakeyou.eu.org'},URL,Intl,Date,Number,Set,Map,AbortSignal,console,window:{scrollTo(){}},setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch},{timeout:2000});
  await new Promise(r=>setImmediate(r));
- return {elements,made,copied,rows:()=>elements.get('#grid').children,all:()=>nodes(elements.get('#grid')),async flushInput(){for(const [id,t]of [...timers])if(t.ms===120){timers.delete(id);await t.fn();}}};
+ return {elements,made,copied,body:document.body,rows:()=>elements.get('#grid').children,all:()=>nodes(elements.get('#grid')),async flushInput(){for(const [id,t]of [...timers])if(t.ms===120){timers.delete(id);await t.fn();}}};
 }
 const firstCopy=f=>f.all().find(e=>e.tagName==='BUTTON'&&e.textContent==='复制链接');
 const firstName=f=>f.all().find(e=>e.className==='module-name')?.textContent;
@@ -46,3 +46,42 @@ test('status failures do not break the list or incorrectly claim scheduled updat
 test('untrusted module names and descriptions remain plain text',async()=>{const f=await fixture(false,{plugins:[{name:'<script>alert(1)</script>',desc:'<img src=x onerror=alert(1)>',tags:[],module:'/modules/example.sgmodule',icon:null}]});assert.equal(firstName(f),'<script>alert(1)</script>');assert.equal(f.all().some(e=>e.tagName==='SCRIPT'||e.tagName==='IMG'),false);});
 
 test('legacy copying from an open modal keeps the temporary field inside the modal',async()=>{const f=await fixture(true);await f.all().find(e=>e.className==='module-main').emit('click');const body=f.elements.get('#detail-body');await nodes(body).find(e=>e.tagName==='BUTTON'&&e.textContent==='复制链接').emit('click');const field=f.made.find(e=>e.tagName==='TEXTAREA');assert.equal(field.parent,body);assert.equal(field.removed,true);assert.equal(f.elements.get('#toast').textContent,'已复制');});
+
+test('invalid records and unsafe module URLs fail closed before rendering any actions',async()=>{
+ const good=plugins(1)[0];
+ const badRecords=[null,{}, {...good,name:42},{...good,name:'   '},{...good,desc:{}},{...good,tags:'去广告'},{...good,tags:[{}]},{...good,date:42},
+  ...[null,'','javascript:alert(1)','data:text/plain,test','https://evil.example/module.sgmodule','//evil.example/module.sgmodule','/modules/../other.sgmodule','/modules/%2e%2e/other.sgmodule','/modules/p0.sgmodule?redirect=https://evil.example','/modules/p0.sgmodule#fragment','/modules/p0.sgmodule\n'].map(module=>({...good,module}))];
+ for(const bad of badRecords){
+  const f=await fixture(false,{plugins:[good,bad]}),e=id=>f.elements.get('#'+id);
+  assert.equal(e('error').hidden,false,JSON.stringify(bad));
+  assert.equal(e('error').textContent,'目录暂时无法载入，请刷新页面重试。');
+  assert.equal(e('count').textContent,'—');
+  assert.equal(f.rows().length,0);
+  assert.equal(e('categories').children.length,0);
+  assert.equal(f.all().some(n=>n.tagName==='A'),false);
+  e('search').value='模块';await e('search').emit('input');await f.flushInput();
+  assert.equal(e('count').textContent,'—');assert.equal(e('empty').hidden,true);
+ }
+});
+
+test('search, sorting and home preserve catalog failure without showing empty-search results',async()=>{
+ const f=await fixture(false,{failCatalog:true}),e=id=>f.elements.get('#'+id);
+ const unchanged=()=>{assert.equal(e('error').hidden,false);assert.equal(e('count').textContent,'—');assert.equal(e('empty').hidden,true);assert.equal(e('pagination').hidden,true);assert.equal(f.rows().length,0);assert.equal(e('sync').textContent,'暂未获取同步时间');};
+ unchanged();e('search').value='不存在';await e('search').emit('input');await f.flushInput();unchanged();
+ e('sort').value='name';await e('sort').emit('change');unchanged();
+ await e('home').emit('click');await f.flushInput();assert.equal(e('search').value,'');unchanged();
+});
+
+test('copy feedback lives in the open modal and moves back to the page after closing',async()=>{
+ for(const [legacyCopyResult,clipboardSuccess,message]of [[false,true,'已复制'],[true,false,'已复制'],[false,false,'复制失败']]){
+  const f=await fixture(legacyCopyResult,{clipboardSuccess}),e=id=>f.elements.get('#'+id),toast=e('toast');
+  await firstCopy(f).emit('click');assert.equal(toast.parentNode,f.body);
+  await f.all().find(n=>n.className==='module-main').emit('click');
+  const modalCopy=nodes(e('detail-body')).find(n=>n.tagName==='BUTTON'&&n.textContent==='复制链接');
+  await modalCopy.emit('click');
+  assert.equal(toast.parentNode,e('details'));assert.equal(toast.textContent,message);assert.equal(toast.classes.has('show'),true);assert.equal(f.body.children.includes(toast),false);
+  await modalCopy.emit('click');assert.equal(e('details').children.filter(n=>n===toast).length,1);
+  await e('close').emit('click');await firstCopy(f).emit('click');
+  assert.equal(toast.parentNode,f.body);assert.equal(e('details').children.includes(toast),false);assert.equal(toast.textContent,message);
+ }
+});
