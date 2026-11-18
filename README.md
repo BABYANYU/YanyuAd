@@ -3,7 +3,7 @@
 Surge 模块目录：把公开插件配置转换为 Surge 模块，静态站每天同步一次。
 
 - 站点：https://ad.fakeyou.eu.org/
-- 托管：Cloudflare Pages（项目 `yanyuad`）＋ 私有 GitHub 仓库
+- 托管：Cloudflare Pages（项目 `yanyuad`）＋ GitHub 仓库
 - 数据：外部插件目录，抓取时必须带客户端 UA，否则返回跳转页
 - 不依赖 VPS、数据库或常驻进程
 
@@ -106,7 +106,7 @@ GitHub → Settings → Secrets and variables → Actions → Variables：
 | 项 | 说明 |
 |---|---|
 | 缓存 | 脚本与样式使用内容哈希文件名；`index.html` 不缓存，避免旧包导致白屏 |
-| 抓取 UA | 源站对普通浏览器 UA 返回跳转，必须使用客户端 UA |
+| 抓取 UA | 源站对普通浏览器 UA 返回跳转，按上游站点规则抓取 |
 | 许可 | 上游内容带 CC BY-NC-SA 4.0 条款。本站为个人非商业用途；公开传播前应自行评估署名与转载要求 |
 | 安全 | 不采集账号、密钥；页面不加载第三方脚本 |
 
