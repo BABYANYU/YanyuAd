@@ -30,17 +30,17 @@ YANYU AD 将公开插件配置整理为 Surge 模块目录，提供浏览、筛�
 | Map Local | iOS 5.9.1；macOS 5.5.1 |
 | Body Rewrite | iOS 5.10.0；macOS 5.6.0 |
 | jq Body Rewrite | iOS 5.14.0；macOS 5.9.0 |
-| Header Rewrite | 上游未标注最低版本，旧版可能无法识别 |
+| Header Rewrite | 最低版本尚未明确，旧版可能无法识别 |
 
 只需使用模块实际包含的功能满足对应版本要求；客户端和模块注释中的具体说明优先。
 
 ## 许可与来源
 
-本仓库中的转换器和网站代码依根目录 [`LICENSE`](LICENSE) 采用 MIT License。目录模块由上游 LoonLab 公开插件配置转换生成，保留模块内来源、作者及许可说明；上游内容按 CC BY-NC-SA 4.0 提供，许可文本见 [`public/licenses/UPSTREAM.txt`](public/licenses/UPSTREAM.txt)，说明见[许可页](https://ad.fakeyou.eu.org/licenses.html)。两类许可适用对象不同。
+转换器和网站代码采用 [MIT License](LICENSE)。目录模块由公开插件配置转换生成，保留原作者、来源和许可声明；相关内容适用 [CC BY-NC-SA 4.0](public/licenses/UPSTREAM.txt)。具体来源与许可说明见[许可页](public/licenses.html)。
 
 ## 构建
 
-需要 Node.js 22 或更高版本。无需额外运行时依赖；同步目录需要访问上游数据源。
+需要 Node.js 22 或更高版本。同步目录时需联网访问数据源。
 
 ```sh
 npm test
